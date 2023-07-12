@@ -1,0 +1,1211 @@
+---
+title: 'Understanding the Relationship between Factors and CO2 Emissions in Fuel Vehicles:
+  Analysis and Modeling'
+author: "Zhiqi Pang, Xintong Yu, Laura Assylgazhina, Cindy Dai"
+date: "2023-06-16"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Contents
+
+<p>1 Introduction</p>
+<p>1.1 Purpose</p>
+<p>1.2 Dataset</p>
+<p>1.3 Methodology</p>
+<p>1.4 Pre-processing</p>
+<p>1.5 Exploratory Data Analysis</p>
+
+<p>2 Analysis</p>
+<p>2.1 Logistic regression</p>
+<p>2.2 Discriminant Analysis</p>
+<p>2.3 Classification decision tree</p>
+<p>2.4 Multinomial regression</p>
+
+<p>3 Conclusion</p>
+
+
+```{r,include=FALSE }
+
+library(tidyr)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(tree)
+library(MASS)
+library(GGally)
+
+```
+
+
+# 1 Introduction
+
+The issue of carbon dioxide (CO2) emissions and their impact on climate change has become a pressing concern worldwide. In the transportation sector, fuel vehicles are significant contributors to CO2 emissions. Understanding the factors that influence CO2 emissions from fuel vehicles is crucial for promoting sustainable practices and reducing our environmental footprint.
+
+Our data science project focuses on analyzing the factors associated with CO2 emissions from fuel vehicles. By examining variables such as vehicle year, make, engine size, cylinders, weight, transmission type, and fuel type, we aim to gain insights into the relationship between these factors and CO2 emissions. This analysis can contribute to a better understanding of the factors driving CO2 emissions in the transportation sector.
+
+While the direct policy implications of our project may vary, the findings can still provide valuable insights for various stakeholders. Automotive manufacturers can leverage this knowledge to develop more environmentally friendly vehicles. Consumers can make informed decisions when purchasing vehicles, considering factors that influence CO2 emissions. Additionally, our project adds to the collective understanding of the environmental impact of fuel vehicles and contributes to the broader efforts toward sustainability.
+
+By delving into the factors that contribute to CO2 emissions from fuel vehicles, our project aims to contribute to the ongoing discussions surrounding climate change mitigation and the transition to more sustainable transportation practices.
+
+
+# 1.1 Purpose
+
+The purpose of our project is to analyze and understand the relationships between various factors and carbon dioxide (CO2) emissions from fuel vehicles. By examining these relationships, we aim to build and test several models to determine their effectiveness in predicting CO2 emissions. Through our analysis, we seek to gain insights into the factors that significantly contribute to CO2 emissions and identify the most suitable model for accurate predictions. The findings from our project will provide valuable knowledge and contribute to the understanding of the factors influencing CO2 emissions from fuel vehicles.
+
+
+# 1.2 The Dataset
+
+Dataset:
+The dataset used in this project was derived from the Open Data from the Government of Canada (2023) [1]. It consists of information about vehicles' characteristics and their corresponding CO2 emission ratings. The data is collected from eight CSV files spanning from 2016 to 2023, with each file containing data for vehicles of a specific year.
+
+Dataset Description:
+The resulting dataset comprises 8,046 rows and 14 columns. It includes the following variables:
+
+1. Year_of_model: The model year of the vehicles ranging from 2016 to 2023.
+2. Make: The brand of the vehicle.
+3. Model: The model of the vehicle.
+4. Vehicle_Class: The class/category of the vehicle.
+5. Engine_Size: The total displacement of all cylinders in liters.
+6. Cylinders: The number of engine cylinders.
+7. Transmission: The type of transmission.
+8. Fuel_name: The fuel type of the vehicle (E = E85, X = Regular gasoline, D = Diesel).
+9. CO2_Emissions: The vehicle's tailpipe emissions of carbon dioxide in grams per kilometer (g/km) for combined city and highway driving.
+10. CO2_rating: The vehicle's tailpipe emissions of carbon dioxide rated on a scale from 1 (worst) to 10 (best).
+11. Weight_upto_kg: Maximum weight of the vehicle (in kilograms) referring to its Vehicle Class.
+12. Auto_trans: A binary variable indicating automatic transmission (1) or manual transmission (0).
+13. CO2_classes: A new variable created based on CO2_rating, categorizing vehicles into "Low emissions" (CO2 emissions <= 249 g/km) and "High emissions" (CO2 emissions > 249 g/km).
+14. Fuel: Fuel types dummified into 1 for E85, 2 for Regular gasoline, and 3 for Diesel.
+
+Data Source:
+The data used in this project is sourced from Open Data from the Government of Canada [1]. It is licensed under the Open Government Licence – Canada.
+
+The dataset provides comprehensive information about various vehicle characteristics and their corresponding CO2 emissions. By exploring the relationships between these factors and building predictive models, we aim to gain insights into the factors influencing CO2 emissions and identify the most significant variables for predicting emission levels.
+
+
+#1.3 Methodology
+
+This project aimed to identify the variables influencing CO2 emissions. The analysis involved data collection, preprocessing, exploratory data analysis, model selection, model training and evaluation, contingency table analysis, assumption checking, interpretation, and reporting.
+
+1. Preprocessing: The data underwent preprocessing to handle missing values, formatting inconsistencies, and modifying variables.
+2. Exploratory Data Analysis: Descriptive statistics and data visualization were used to explore variable distributions and relationships.
+3. Model Selection: Logistic regression, LDA, QDA, classification decision tree, and multinomial regression were chosen as relevant models for the analysis.
+4. Model Training and Evaluation: Models were trained using a training dataset and evaluated using performance metrics and cross-validation techniques.
+5. Contingency Tables and Tests: Contingency tables and chi-square tests were used to examine the relationship between CO2 emissions and categorical variables (e.g., vehicle make, vehicle class).
+6. Assumptions Checking: Assumptions underlying the models, such as normality and homoscedasticity, were assessed using diagnostic tests.
+7. Interpretation and Reporting: Significant variables contributing to CO2 emissions were identified, and findings were reported with relevant statistical measures.
+8. Conclusion: Conclusions were drawn regarding the significant variables influencing CO2 emissions based on the analysis of selected models, contingency tables, and statistical tests.
+
+# 1.4 Preprocessing
+
+1. All 8 datasets in CSV formats were read to dataframes
+
+2. Dataframes were merged by merged_data<-rbind(data1, data2, data3, data4, data5, data6, data7, data8)
+
+3. Some of columns were renamed for convenience
+
+4. Missing values were checked by sum(is.na(merged_data)): NA values were not identified
+
+5. The values in Vehicle Class and Make were modified to one format to prevent duplicates (such as "LAMBORGHINI" and "Lamborghini"), for examle:
+merged_data[merged_data == "SUV - SMALL"] <- "SUV: Small"
+merged_data[merged_data == "TWO-SEATER"] <- "Two-seater"
+merged_data$Make = toupper(merged_data$Make)
+
+6. Creating new variables to use in models:
+
+merged_data$CO2_classes <- ifelse(merged_data$CO2_Emissions > 249, "High", "Low")
+
+merged_data$Auto_trans <- ifelse(merged_data$Transmission %in% c("M6", "M7", "M5"), 0, 1)
+"M6", "M7", "M5" - are fully manual transmisison types, the rest - are Automatic or Semi-automatic transmission types
+
+merged_data$Fuel[merged_data$Fuel_name == "E"] <- 1
+merged_data$Fuel[merged_data$Fuel_name == "X"] <- 2
+merged_data$Fuel[merged_data$Fuel_name == "D"] <- 3
+Fuel types dummified into 1 for E85, 2 for Regular gasoline, and 3 for Diesel (from less associated with CO2 to more associated with CO2 regarding fuel composition)
+
+7. Converting categorical variables to factors:
+
+```{r}
+#read the data
+
+mydata = read.csv("merged_data_full_6.csv")
+```
+
+
+
+```{r}
+#convert the categorical variables from character type to factor
+
+mydata$CO2_classes = as.factor(mydata$CO2_classes)
+mydata$Fuel = as.factor(mydata$Fuel)
+mydata$Make = as.factor(mydata$Make )
+mydata$Vehicle_Class = as.factor(mydata$Vehicle_Class)
+mydata$Transmission = as.factor(mydata$Transmission)
+mydata$Fuel_name = as.factor(mydata$Fuel_name)
+```
+
+
+# 1.5 Exploratory Data Analysis
+
+In this part of our analysis, we will focus on summary information about the dataset and examine the variables individually through visualizations and contingency tables.
+
+The tabular form of our data is shown below:
+
+```{r}
+#display the data
+head(mydata, n=4)
+```
+
+The dataset has 8046 rows and 14 columns:
+
+```{r}
+#check the dimension of the dataset
+str(mydata)
+dim(mydata)
+```
+The summary function provides a concise summary of the key statistics and information about the variables in our dataset. It includes the count, mean, minimum, maximum, and quartile values for numeric variables, as well as the frequency count for categorical variables:
+
+
+
+
+
+
+
+```{r}
+#summary of data
+
+summary(mydata)
+```
+
+
+```{r}
+colSums(is.na(mydata))
+```
+
+
+
+
+
+### Overall distribution of classes
+
+Based on the dataset, we observed that 49.7% (4001 vehicles) of the vehicles belong to the high emissions class, while 50.3% (1016 vehicles) belong to the low emissions class. This is due to the CO2 Class is classified based on the CO2 emission and split at median value of CO2 emission data. Therefore, the two CO2 Class are close to 50/50 distributed in the Dataset. No additional re-sampling is needed to avoid bias.  This distribution is visually represented in Figure 1.5.1 below. 
+
+```{r}
+#Check the classes and their sizes
+
+table(mydata$CO2_classes)
+```
+
+```{r}
+
+library(ggplot2)
+
+# Define the colors for the CO2 classes
+my_colors <- c("#feb24c", "#a1d99b")
+
+# Plot the overall distribution of CO2 classes
+ggplot(mydata, aes(x = CO2_classes, fill = CO2_classes)) +
+  geom_bar() +
+  scale_fill_manual(values = my_colors) +
+  xlab("CO2 Classes") +
+  ylab("Count") +
+  ggtitle("Figure 1.5.1 Distribution of CO2 Classes (High/Low Emissions) in a dataset") 
+```
+
+### CO2 Class (High/Low CO2 Emissions) and Year of Model
+
+```{r, include=FALSE}
+library(dplyr)
+low=filter(mydata, CO2_classes=='Low')
+high=filter(mydata, CO2_classes=='High')
+head(low,n=4)
+```
+
+For the High CO2 rating class, the data is distributed across the years 2016 to 2023. However, it's important to note that the data for 2023 is not complete, and the counts may not represent the full year. Excluding 2023, the highest number of vehicles in this class was manufactured in 2022, with a count of 535. This suggests that 2022 had a relatively larger number of vehicles with low CO2 emissions (high CO2 rating). On the other hand, the year 2017 had the lowest count with 479 vehicles, indicating a comparatively higher production of high CO2 emission vehicles during that year.
+
+For the Low CO2 rating class, the year 2016 had the highest count in this class, with 589 vehicles. Since then, the number of low CO2 ratings has decreased year by year, implying a gradual reduction in the CO2 emissions of Canadian vehicles. Although the specific counts for 2023 are not available, the decreasing trend in the number of low CO2 emission vehicles suggests a positive shift towards lower emissions in more recent years.
+
+
+
+
+```{r}
+# Distribution of data between CO2_Class=High (High CO2 Emissions) and Year of Model
+table(high$Year_of_model) 
+```
+```{r}
+# Distribution of data between CO2_Class=Low (Low CO2 Emissions) and Year of Model
+table(low$Year_of_model) 
+```
+
+
+```{r}
+# Custom color palette
+my_colors <- c("#feb24c", "#a1d99b")  
+
+# Create the plot
+ggplot(mydata, aes(x = CO2_classes, y = Year_of_model, fill = CO2_classes)) +
+  geom_boxplot() +
+  scale_fill_manual(values = my_colors) +  
+  theme_minimal() +  
+  labs(x = "CO2 Class", y = "Year of Model", fill = "CO2 Class") +  
+  ggtitle("Figure 1.5.2 Relationship between CO2 Class (High/Low CO2 Emissions) and Year of Model")  
+```
+
+
+
+### Visualizing the impact of engine size and cylinder count on CO2 emission through a scatter plot
+
+
+
+```{r}
+
+# Making plot of engine size and CO2 emissions incorporating cylinders as categorical variable
+ggplot(data = mydata, aes(x = Engine_Size, y = CO2_Emissions, colour = Cylinders)) +
+  geom_point() +
+  geom_smooth() +
+  scale_color_gradient(low = "#B2DF8A", high = "#1F78B4") +
+  labs(title = "Figure 1.5.3 Impact of Engine Size and Cylinder Count on CO2 Emissions",
+       x = "Engine Size",
+       y = "CO2 Emissions")
+
+
+```
+
+
+The scatter plot demonstrates a positive correlation between engine size and CO2 emissions, indicating that larger engine sizes typically result in higher CO2 emissions. Additionally, the plot emphasizes the positive association between the number of cylinders in a vehicle and CO2 emissions. This connection is based on the principle that a higher cylinder count often corresponds to a larger engine size, as more cylinders require additional combustion space. It is worth noting that the majority of vehicles with engine sizes above 5 tend to have cylinder counts exceeding 12, potentially leading to increased CO2 emissions.
+
+
+
+### CO2 Class (High/Low CO2 Emissions) and Vehicle Class Weight
+
+```{r}
+summary(high$Weight_upto_kg)
+```
+
+```{r}
+summary(low$Weight_upto_kg)
+```
+The summary statistics for the vehicle class weights indicate that the weights range from 1300 kg to 3628 kg in both the high and Low CO2 emissions class. 
+
+The average (mean) weight in the high CO2 emissions class is approximately 2419 kg. On the other hand, the average weight in the low CO2 emissions class  is approximately 1879 kg. This implies that vehicles in this class generally have a lower weight compared to the high emissions class, which could be a contributing factor to their lower CO2 emissions.
+
+In summary, the weight of the vehicle is a factor that appears to influence its CO2 emissions, with heavier vehicles typically exhibiting higher emissions, while lighter vehicles tend to have lower emissions. This can be visually explored in the Boxplots in Figure 1.5.5 below.
+
+
+
+
+
+```{r}
+# Custom color palette
+my_colors <- c("#feb24c", "#a1d99b")  
+
+# Create the plot
+ggplot(mydata, aes(x = CO2_classes, y = Weight_upto_kg, fill = CO2_classes)) +
+  geom_boxplot() +
+  scale_fill_manual(values = my_colors) +  
+  theme_minimal() +  
+  labs(x = "CO2 Class", y = "Vehicle Class Weight", fill = "CO2 Class") +  
+  ggtitle("Figure 1.5.5 Relationship between CO2 Class (High/Low CO2 Emissions) and Vehicle Class Weight")  
+```
+
+
+### CO2 Class (High/Low CO2 Emissions) and Transmission Type (Automatic/Manual)
+
+The majority of vehicles in both the high and low emissions classes have automatic transmission. However, there are more vehicles with automatic transmission in the high emissions class compared to the low emissions class.
+
+The type of transmission may have an impact on the CO2 emissions of vehicles, with automatic transmission potentially being associated with higher emissions. Further analysis and testing will be done to explore the relationship between transmission type and CO2 emissions in more detail.
+
+```{r}
+# Distribution of data between CO2_Class=High (High CO2 Emissions) and Transmission Type
+table(high$Auto_trans) 
+```
+
+```{r}
+# Distribution of data between CO2_Class=Low (Low CO2 Emissions) and Transmission Type
+table(low$Auto_trans) 
+```
+
+```{r}
+# Create a bar plot with custom colors
+ggplot(mydata, aes(x = Auto_trans, fill = CO2_classes)) +
+  geom_bar() +
+  scale_fill_manual(values = c("#feb24c", "#a1d99b")) +
+  labs(x = "0- Manual, 1-Automatic", y = "Count", fill = "CO2 Classes") +
+  ggtitle("Figure 1.5.6 Distribution of CO2 Classes (High/Low Emissions) by Transmission Type")
+
+```
+
+
+### CO2 Class (High/Low CO2 Emissions) and Fuel Type (Diesel(D)/ E85(E) / Regular Gasoline (X))
+
+The output below suggests that the majority of vehicles in both the high and low emissions classes use Fuel type 2 (Regular Gasoline). Fuel types 1 (E85) and 3 (Diesel) are less common in both classes.
+
+The type of fuel used by vehicles can have an impact on their CO2 emissions. Fuel type 2 appears to be more prevalent in both high and low emissions classes, indicating its importance in determining emission levels.
+
+```{r}
+# Distribution of data between CO2_Class=High (High CO2 Emissions) and Fuel Type
+table(high$Fuel) 
+```
+
+```{r}
+# Distribution of data between CO2_Class=Low (Low CO2 Emissions) and Fuel Type
+table(low$Fuel) 
+```
+
+```{r}
+
+# Create a bar plot with custom colors
+ggplot(mydata, aes(x = Fuel, fill = CO2_classes)) +
+  geom_bar() +
+  scale_fill_manual(values = c("#feb24c", "#a1d99b")) +
+  labs(x = "Fuel Type: D - Diesel, E - E85, X - Regular Gasoline", y = "Count", fill = "CO2 Classes") +
+  ggtitle("Figure 1.5.7 Distribution of CO2 Classes (High/Low Emissions) by Fuel Type")
+
+```
+
+### Two-way contingency table
+
+In this section, we will explore the relationship between the "Make" variable and the "CO2 Class" variable using a two-way contingency table. The "Make" variable represents the brand or manufacturer of the vehicles, while the "CO2 Class" variable categorizes the vehicles into high or low CO2 emissions classes.
+
+```{r}
+tab1<-table(mydata$CO2_classes, mydata$Make) #the joint table of CO2_class and Make
+proportions = prop.table(tab1, margin = 1) #proportions table conditional on row
+proportions
+```
+
+Based on proportions table, the visualization of Vehicles' Makes in High and Low emissions categories provided below (Figure 1.5.8).
+```{r,include=FALSE}
+library(tibble)
+```
+
+```{r, echo = FALSE}
+makes_high=as.data.frame(proportions[1,])
+makes_high <- rownames_to_column(makes_high, var = "Make")
+colnames(makes_high)[2] <- "Proportions"
+sorted_makes_high <- makes_high[order(makes_high[,2], decreasing = TRUE), ]
+
+makes_low=as.data.frame(proportions[2,])
+makes_low <- rownames_to_column(makes_low, var = "Make")
+colnames(makes_low)[2] <- "Proportions"
+
+sorted_makes_low <- makes_low[order(makes_low[,2], decreasing = TRUE), ]
+# Determine the maximum absolute value of the proportions
+max_value <- max(abs(c(makes_high$Proportions, makes_low$Proportions)))
+# Set up the layout for the plots
+par(mfrow = c(2, 1), mai = c(1, 1, 0.2, 0.2))
+# Make the bars of the first chart point up with color "#feb24c" for high emissions
+barplot(makes_high$Proportions, names.arg = makes_high$Make,
+        main = "Figure 1.5.7 Proportions of vehicles in High and Low emissions categories",
+        ylab = "Proportions",
+        las = 2, cex.names = 0.7,
+        ylim = c(0, max_value),
+        col = "#feb24c")
+barplot(-makes_low$Proportions, names.arg = makes_low$Make,
+        ylab = "Proportions",
+        las = 2, cex.names = 0.7,
+        ylim = c(-max_value, 0),
+        col = "#a1d99b",
+        xaxt = "n")
+# Adjust the size of the x-axis tick labels
+par(cex.axis = 0.01)
+
+```
+
+From the barplots, we can observe that certain brands, such as FORD, CHEVROLET and BMW make relatively balanced contributions to both the High and Low emissions categories.
+
+Some Makes, such as ASTON MARTINI, LAMBORGHINI and MASERATI have a very low or zero proportion in the Low CO2 class, indicating they are more commonly associated with higher emissions vehicles.
+
+TOYOTA, HONDA, MAZDA, and HYUNDAI make a significant contribution to low-emission vehicles compared to high-emission vehicles among others.
+
+In general, the proportions vary across different Make categories, suggesting that different manufacturers have different distributions of vehicles in terms of CO2 emissions.
+
+```{r}
+chisq.test(tab1)
+```
+Based on the very low p-value, we can conclude that there is a significant association between CO2_class and Vehicle_Make. In other words, the CO2 emission classes are not independent of the vehicle makes, and there is a relationship between these two variables.  However, the test may not be accurate as there are small observed frequencies in some cells.
+
+As the assumptions of the Chi-squared test are violated, we applied another statistical test that is called Fisher's Exact Test.
+
+```{r, include=FALSE}
+library(questionr)
+```
+
+```{r}
+# Apply Fisher's exact test with simulate.p.value=TRUE
+fisher_result <- fisher.test(tab1, simulate.p.value = TRUE)
+
+# Print the test result
+print(fisher_result)
+```
+This means that under the null hypothesis (assuming independence between the variables), the observed data is unlikely to occur by chance alone. The small p-value suggests that there is a significant association between the variables in the contingency table.
+
+Therefore, we can conclude that there is evidence to reject the null hypothesis and suggest that there is a relationship between the CO2_class and Vehicle_Make variables.
+
+
+
+
+
+# 2 Analysis
+
+
+# 2.1 Logistic regression
+
+```{r, include=FALSE}
+
+library(sampling)
+```
+
+The code below allows to check how R dummifies the “CO2_class” variable: 1 is associated with "Low" emissions and 0 with "High" emissions.
+
+```{r}
+#Check how R dummifies the “CO2_class” variable
+
+contrasts(mydata$CO2_classes) 
+```
+
+```{r}
+#Check the order of class
+
+unique(mydata$CO2_classes) 
+```
+The code below defines the proportion of training set (75% of the original dataset). The proportions of "High" and "Low" CO2 classes in training set reflect the proportions of these classes in the original dataset. 
+
+```{r}
+#calculating the appropriate proportions of classes for training set
+
+percent_75 = 3/4*dim(mydata)[1] #75% of data for training set
+high_class = table(mydata$CO2_classes)[1]/dim(mydata)[1] #proportion of high class
+low_class = table(mydata$CO2_classes)[2]/dim(mydata)[1] #proportion of low class
+
+sample_high_class=round(high_class*percent_75,0) #number of high class in training set 
+sample_low_class=round(low_class*percent_75,0) #proportion of low class in training set
+
+N = sample_high_class + sample_low_class #size of all training set
+
+c(sample_high_class, sample_low_class)
+```
+
+Then, we split the data into training and testing sets using stratified sampling with "CO2_classes" strata and proportions defined in the code above.
+
+```{r cars}
+#splitting to train and test sets
+
+set.seed(2023)
+idx=sampling:::strata(mydata, stratanames=c("CO2_classes"), size=c(sample_low_class, sample_high_class), method="srswor")
+train=mydata[idx$ID_unit,]
+test=mydata[-idx$ID_unit,]
+```
+
+
+Fitting the model with variables of interest:
+
+```{r}
+# Get a logistic regression(Full) model based on the training set
+
+log_model<-glm(CO2_classes~Year_of_model+Engine_Size+factor(Cylinders)+Weight_upto_kg+Auto_trans+factor(Fuel), family=binomial, data=train)
+summary(log_model)
+```
+
+
+The model results indicate that several variables have significant effects on the prediction. Specifically, 'Year_of_model', 'Engine_Size', 'Weight_upto_kg', 'Auto_trans', and 'Fuel' show statistically significant coefficients.
+
+
+```{r}
+# Drop the "Cylinder" variable to get the best model based on the training set
+
+bestmodel<-glm(CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel), family=binomial, data=train)
+summary(bestmodel)
+
+```
+
+After dropping the "Cylinder" variable, the logistic regression model was refitted using the remaining variables based on the training set. The updated model, referred to as the best model, includes 'Year_of_model', 'Engine_Size', 'Weight_upto_kg', 'factor(Auto_trans)', and 'factor(Fuel)' as predictor variables.
+
+The best model demonstrates statistically significant effects for all remaining variables at the 0.05 significance level. These variables, namely 'Year_of_model', 'Engine_Size', 'Weight_upto_kg', 'factor(Auto_trans)', and 'factor(Fuel)', have a significant impact on predicting the CO2 emission class.
+
+The goodness-of-fit measures indicate that the best model exhibits a lower residual deviance compared to the null deviance, suggesting a reasonable fit to the data. Despite the slightly higher AIC compared to the full model (3363.4 vs. 3414.1), the best model strikes a balance between model complexity and fit.
+
+When selecting a model, it is essential to consider the significance and interpretability of the variables. The best model, by removing the non-significant "Cylinder" variable, provides a more interpretable and focused representation of the relationship between the predictor variables and the CO2 emission class.
+
+Although the AIC did not decrease in the best model, we prioritize the significance and interpretability of the variables. By considering only the variables that have a significant impact, the best model offers a more accurate and reliable prediction of the CO2 emission class.
+
+In summary, we select the best logistic regression model as it provides a simplified yet statistically significant prediction of the CO2 emission class based on the selected features. This model ensures a good balance between goodness of fit and simplicity, enhancing our understanding of the relationship between the predictor variables and the CO2 emission class.
+
+
+
+
+
+```{r, include=FALSE}
+#Checking the “variance inflation factor” for each coefficient
+library(regclass)
+```
+
+```{r}
+VIF(bestmodel)
+```
+
+From the VIF values, it can be seen that there is no multicollinearity between predictor variables (all values < 5).
+
+
+
+```{r}
+#Apply the full logistic regression model to the test set
+
+Prob.predict1<-predict(log_model, test, type="response")
+Predict1<-rep("High",dim(test)[1])
+Predict1[Prob.predict1>=0.5]="Low"
+Actual<-test$CO2_class
+table(Predict1, Actual)
+```
+
+```{r}
+#checking the misclassification rate of 
+
+Misc_rate_logreg = 1-mean(Predict1==test$CO2_class)
+Misc_rate_logreg
+```
+
+
+
+```{r}
+#Apply the best model to the test set
+
+Prob.predict<-predict(bestmodel, test, type="response")
+Predict<-rep("High",dim(test)[1])
+Predict[Prob.predict>=0.5]="Low"
+Actual<-test$CO2_class
+table(Predict, Actual)
+```
+
+```{r}
+#checking the misclassification rate
+
+Misc_rate_logreg = 1-mean(Predict==test$CO2_class)
+Misc_rate_logreg
+```
+
+After applying the best logistic regression model to the test set, the predicted probabilities for each observation were obtained using the predict function. The Predict variable was initialized with "High" for all observations, and then modified based on the predicted probabilities. If the predicted probability of an observation belonging to the "Low" class was greater than or equal to 0.5, the corresponding element in Predict was changed to "Low". The actual class labels were stored in the Actual variable.
+
+The contingency table, generated using the table(Predict, Actual) function, compares the predicted classes (Predict) with the actual classes (Actual) from the test set. The table shows that there were 848 observations classified as "High" and correctly predicted as "High", 894 observations classified as "Low" and correctly predicted as "Low", while 117 observations were classified as "High" but actually belonged to the "Low" class. Additionally, 152 observations were classified as "Low" but were actually "High".
+
+The misclassification rate, calculated as 1 minus the proportion of correct predictions, was 0.1337643 or approximately 13.38%. This indicates that approximately 13.38% of the observations in the test set were misclassified by the best logistic regression model.
+
+It is worth noting that the misclassification rate of the best model (0.1337643) is lower than that of the full model (0.1342616). This suggests that the best model, despite having a slightly higher AIC, provides improved accuracy in predicting the CO2 emission class compared to the full model.
+
+
+To assess the performance and generalization ability of our logistic model, we apply 10-fold cross-validation technique. By splitting the dataset into 10 subsets (folds), it allows for training and evaluating the model 10 times using different combinations of training and validation data. This will help to estimate how well the model will perform on unseen data and provides a more reliable evaluation metric compared to a single train-test split.
+
+```{r, include=FALSE}
+#installing package for cross validation method
+
+#install.packages('caret', repos = "http://cran.us.r-project.org")
+library(caret)
+
+```
+
+
+```{r}
+set.seed(2023)
+folds<-createFolds(factor(mydata$CO2_classes), k=10)
+```
+
+
+```{r}
+#checking Accuracy by cross-validation method for logistic regression
+
+model_fit_log<-train(CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel), data=mydata, trControl = trainControl(method = "cv", index = folds), method='glm')
+model_fit_log
+```
+The logistic regression model, trained using the glm method, achieved an accuracy of approximately 0.8726 and a kappa statistic of 0.7451. These performance metrics were obtained through cross-validation with a 10-fold resampling strategy.
+
+The model was fitted on a dataset consisting of 8,046 samples and included five predictor variables: Year_of_model, Engine_Size, Weight_upto_kg, factor(Auto_trans), and factor(Fuel). The response variable, CO2_classes, had two classes: 'High' and 'Low'.
+
+The results indicate that the logistic regression model achieved a relatively high accuracy of 0.8726, indicating that it correctly classified approximately 87.26% of the samples. The kappa statistic of 0.7451 suggests a substantial agreement between the model's predictions and the true classifications beyond what could be expected by chance alone.
+
+
+
+```{r}
+#Apply the best logistic regression model to the whole set
+
+Prob.predict_whole<-predict(bestmodel, mydata, type="response")
+Predict_whole<-rep("High",dim(mydata)[1])
+Predict_whole[Prob.predict_whole>=0.5]="Low"
+Actual_whole<-mydata$CO2_classes
+table(Predict_whole, Actual_whole)
+```
+
+
+```{r}
+#checking the misclassification rate
+
+Misc_rate_logreg_whole = 1-mean(Predict_whole==Actual_whole)
+Misc_rate_logreg_whole
+```
+Applying the best logistic regression model to the entire dataset, we obtained predictions for the CO2_classes. The resulting table shows the comparison between the predicted classes (High and Low) and the actual classes from the dataset.
+
+In terms of accuracy, the model correctly classified 3437 samples as High CO2 emissions and 3586 samples as Low CO2 emissions. However, it misclassified 459 samples as Low when they were actually High, and 564 samples as High when they were actually Low.
+
+Calculating the misclassification rate, we find that the overall misclassification rate for the logistic regression model applied to the entire dataset is approximately 0.1271, or 12.71%. This indicates that the model's predictions for the CO2 emission classes have an error rate of 12.71%.
+
+
+
+```{r}
+unique(test$Auto_trans)
+```
+
+```{r}
+unique(mydata$Auto_trans)
+```
+
+
+# 2.2 Linear Discriminant Analysis
+
+### LDA Assumptions
+```{r, include=FALSE}
+# Load the required packages
+#install.packages("GGally")
+library(GGally)
+```
+
+```{r}
+# Select the variables
+my_variables <- c("Year_of_model", "Engine_Size",  
+    "Weight_upto_kg", "Auto_trans", "Fuel", "CO2_classes")
+
+# Create a scatterplot matrix
+ggpairs(mydata, columns = my_variables, mapping = aes(color = CO2_classes))
+
+```
+Multivariate Normality test:From the density plot in ggpairs, the variables in our dataset don’t follow a multivariate distribution within each class of CO2_class.
+Equality of variances:From the box plots, the variances of variables are not equal across different levels of the CO2_class variable.
+
+### Using tests to check the Assumptions of Linear Discriminant Analysis
+
+### Multivariate normality
+
+H0 (null): The variables follow a multivariate normal distribution within each class of CO2_class.
+Ha (alternative): The variables do not follow a multivariate normal distribution within each class of CO2_class.
+
+An Energy Test is a statistical test that determines whether or not a group of variables follows a multivariate normal distribution. 
+```{r, include=FALSE}
+#install.packages(repo="https://github.com/mariarizzo/energy")
+library(energy)
+mydata$Fuel = as.numeric(mydata$Fuel)
+```
+
+
+```{r}
+# Subset the data for each CO2 class
+low_emissions <- subset(mydata, CO2_classes == "Low")
+high_emissions <- subset(mydata, CO2_classes == "High")
+
+# Extract the predictor variables for each class
+predictors_low <- subset(low_emissions, select = c("Year_of_model", "Engine_Size", 
+    "Weight_upto_kg", "Auto_trans", "Fuel"))
+predictors_high <- subset(high_emissions, select = c("Year_of_model", "Engine_Size", 
+    "Weight_upto_kg", "Auto_trans", "Fuel"))
+
+#perform Multivariate normality test
+mvnorm.etest(predictors_low, R=100)
+mvnorm.etest(predictors_high, R=100)
+
+```
+
+The p-value of the test is < 2.2e-16. Since this is less 0.05, we accept the null hypothesis of the test. We don’t have evidence to say that the variables in our dataset follow a multivariate distribution within each class of CO2_class.
+
+### Equality of Variances
+
+H0 (null): the variances of the predictor variable are equal across different levels of the CO2_class variable.
+Ha (alternative): the variances of the predictor variable are not equal across different levels of the CO2_class variable.
+
+
+Multivariate Normality test: From the density plot in ggpairs, the variables in our dataset don’t follow a multivariate distribution within each class of CO2_class.
+Equality of variances: From the box plots, the variances of variables are not equal across different levels of the CO2_class variable.
+
+```{r, include=FALSE}
+# Install and load the car package
+#install.packages("car")
+library(car)
+```
+
+```{r}
+# Perform Levene's test for each variable
+leveneTest(Year_of_model ~ mydata$CO2_classes, data = mydata)
+leveneTest(Engine_Size ~ mydata$CO2_classes, data = mydata)
+leveneTest(Weight_upto_kg ~ mydata$CO2_classes, data = mydata)
+leveneTest(Auto_trans ~ mydata$CO2_classes, data = mydata)
+leveneTest(Fuel ~ mydata$CO2_classes, data = mydata)
+```
+The p-values of the test for all predictor variables are < 0.05. Therefore, we accept the null hypothesis of the test. We don’t have evidence to say that the variances of the predictor variable are equal across different levels of the CO2_class variable.
+
+
+```{r, include=FALSE}
+library(MASS)
+mydata$Fuel = as.factor(mydata$Fuel)
+```
+
+
+### LDA model
+
+```{r}
+#get a linear discriminant analysis (LDA) model
+
+lda_model<-lda(CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel), data=train)
+
+lda_model
+summary(lda_model)
+```
+
+Variables with larger absolute coefficients are considered more important in separating the classes. In this case, variables like "Engine_Size", "factor(Fuel)3", "factor(Fuel)2" have larger absolute coefficients, indicating their greater contribution to the discriminant function.
+
+To further assess the significance of variables of LDA model, we will use statistical test of Wilks' lambda. 
+
+```{r}
+# Extract Wilks' lambda
+wilks_lambda <- lda_model$scaling^2
+wilks_lambda
+
+```
+
+The values extracted as Wilks' lambda represent the proportion of the variance in each predictor variable that is not explained by the linear discriminant function. So, a smaller value of Wilks' lambda indicates that the predictor variable contributes more to the separation of the groups.
+Therefore, the "Year_of_model", "Weight_upto_kg", and "Auto_trans" variables seem to be the most important predictors in discriminating between groups, based on their Wilks' lambda values.
+
+
+```{r}
+#Apply the fitted LDA model to the test set
+
+lda.pred=predict(lda_model, test)
+table(lda.pred$class, test$CO2_classes)
+```
+
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_lda = 1-mean(lda.pred$class==test$CO2_classes)
+Misc_rate_lda
+```
+### QDA model
+
+```{r}
+#get a quadratic discriminant analysis (QDA) model
+
+qda_model<-qda(CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel), data=train)
+qda_model
+
+```
+
+```{r}
+qda_class<-predict(qda_model, test)$class
+table(qda_class, test$CO2_classes)
+```
+
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_qda = 1-mean(qda_class==test$CO2_classes)
+Misc_rate_qda
+```
+
+The misclassification rate in the QDA model (0.1645947) gets increased comparing to the LDA model (0.1511686).
+
+
+### Accuracy in LDA, QDA models
+
+```{r, include=FALSE}
+library(caret)
+```
+
+
+```{r}
+# Checking Accuracy by cross-validation method for LDA
+# Set up cross-validation using trainControl
+folds <- createFolds(mydata$CO2_classes, k = 10)
+
+# Train the LDA model using cross-validation
+model_fit_lda <- train(
+  CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel),
+  data = mydata,
+  trControl = trainControl(method = "cv", index = folds),
+  method = 'lda'
+)
+model_fit_lda
+```
+
+
+```{r}
+# Checking Accuracy by cross-validation method for QDA
+
+# Set up cross-validation using trainControl
+folds <- createFolds(mydata$CO2_classes, k = 10)
+
+# Train the LDA model using cross-validation
+model_fit_qda <- train(
+  CO2_classes~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+factor(Fuel),
+  data = mydata,
+  trControl = trainControl(method = "cv", index = folds),
+  method = 'qda'
+)
+model_fit_qda
+
+```
+
+```{r}
+#Apply the fitted LDA model to the whole set
+
+lda.pred.whole=predict(lda_model, mydata)
+table(lda.pred.whole$class, mydata$CO2_classes)
+```
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_lda = 1-mean(lda.pred.whole$class==mydata$CO2_classes)
+Misc_rate_lda
+```
+
+```{r}
+#Apply the fitted QDA model to the whole set
+
+qda.pred.whole=predict(qda_model, mydata)
+table(qda.pred.whole$class, mydata$CO2_classes)
+```
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_qda = 1-mean(qda.pred.whole$class==mydata$CO2_classes)
+Misc_rate_qda
+```
+After applying the LDA and QDA models on the whole dataset, the misclassification rate in the QDA model (0.1620681) is still higher comparing to the LDA model (0.1419339).
+
+
+
+
+
+# 2.3 Classification decision tree
+
+In this section, we will be performing a classification tree to predict the classes of CO2 emissions of different car models. We first fit a classification tree to the training set using the 'tree' function. The constructed decision tree uses the Year of the Model, Engine Size, Weight up to a certain kilogram limit, Auto Transmission, and Fuel type as predictors. The performance of this initial tree is then evaluated using the misclassification error rate, highlighting the proportion of instances that the model has incorrectly predicted.
+
+To improve the model's performance, the tree was pruned using cross-validation, with the misclassification error as the criterion. The resulting pruned tree consisted of two terminal nodes and achieved a misclassification error rate of 0.12, or 12%. This indicates that approximately 12% of the observations in the dataset were misclassified by the pruned tree. The pruned tree primarily focused on the Engine_Size variable, dividing the samples into High and Low CO2 emission classes based on an engine size threshold of 2.6.
+
+
+```{r, include=FALSE}
+#install.packages("tree", repos = "http://cran.us.r-project.org")
+library(tree)
+```
+
+
+```{r}
+#fit a classification tree to the training set
+
+tree.class<-tree(factor(CO2_classes)~Year_of_model+Engine_Size+Weight_upto_kg+Auto_trans+Fuel, train)
+summary(tree.class)
+```
+
+```{r}
+#plot the tree
+
+plot(tree.class)
+text(tree.class, pretty=0, cex = 0.5)
+```
+
+The resulting unpruned tree consisted of six terminal nodes and exhibited a misclassification error rate of approximately 0.118, indicating that around 11.8% of the observations were misclassified. The variables Engine_Size and Weight_upto_kg played significant roles in the construction of the tree.
+
+When applying the unpruned tree to the test set, it correctly classified 808 samples as High CO2 emissions and 948 samples as Low CO2 emissions. However, it misclassified 63 samples as Low when they were actually High and 192 samples as High when they were actually Low. 
+
+
+
+
+
+```{r}
+#apply the fitted tree to the test set
+
+tree.pred<-predict(tree.class,test,type = "class")
+table(tree.pred,test$CO2_classes)
+```
+
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_class_tree = 1- mean(tree.pred==test$CO2_classes)
+Misc_rate_class_tree
+```
+
+
+To improve the model's performance, the tree was pruned using cross-validation, with the misclassification error as the criterion. The resulting pruned tree consisted of two terminal nodes and achieved a misclassification error rate of 0.127, or 12.7%. This indicates that approximately 12.7% of the observations in the dataset were misclassified by the pruned tree. The pruned tree primarily focused on the Engine_Size variable, dividing the samples into High and Low CO2 emission classes based on an engine size threshold of 2.6.
+
+
+```{r}
+#Prune the tree by checking the cross-validation errors
+
+set.seed(2023)
+cv.class<-cv.tree(tree.class, FUN = prune.misclass, K=10) 
+plot(cv.class$size, cv.class$dev,type="b")
+```
+
+```{r}
+#Plot the pruned tree
+
+prune.class=prune.tree(tree.class,best=2)
+plot(prune.class)
+text(prune.class,pretty=0)
+```
+
+
+```{r}
+prune.class
+
+```
+
+
+The pruned classification tree consists of two nodes.
+
+At the root node, there are a total of 6035 observations. The deviance is 8366, and the predicted class is "Low" with a probability of 0.49727 and "High" with a probability of 0.50273.
+
+The first split is based on the "Engine_Size" variable. If the engine size is less than 2.6, there are 2688 observations. The predicted class is "Low" with a probability of 0.06957 and "High" with a probability of 0.93043. This is a terminal node.
+
+If the engine size is greater than 2.6, there are 3347 observations. The predicted class is "High" with a probability of 0.84075 and "Low" with a probability of 0.15925. This is also a terminal node.
+
+In summary, the pruned tree suggests that for engine sizes less than 2.6, the predicted class is "Low", while for engine sizes greater than 2.6, the predicted class is "High".
+
+
+```{r}
+summary(prune.class)
+```
+
+The classification tree was pruned to have two terminal nodes, and the only variable used in constructing the pruned tree was "Engine_Size." The pruned tree achieved a residual mean deviance of 0.7115, indicating a reasonably good fit to the data. However, the misclassification error rate is 0.119, suggesting that approximately 11.9% of the observations are misclassified by the pruned tree. Therefore, the pruned tree provides an accuracy of 88.1%, correctly classifying 88.1% of the observations.
+
+
+```{r}
+#Apply the fitted tree model to the whole set
+tree.pred.whole <- predict(prune.class, mydata, type = "class")
+table(tree.pred.whole, mydata$CO2_classes)
+
+```
+
+
+
+```{r}
+#check the misclassification rate
+
+Misc_rate_pruned_class_tree = 1- mean(tree.pred.whole==mydata$CO2_classes)
+Misc_rate_pruned_class_tree
+```
+
+
+
+When applying the pruned tree to the entire dataset, it correctly classified 3,733 samples as High CO2 emissions and 3,322 samples as Low CO2 emissions. However, it misclassified 723 samples as Low when they were actually High and 268 samples as High when they were actually Low. The overall misclassification rate for the pruned classification tree on the entire dataset was approximately 0.123, or 12.3%.
+
+In conclusion, the classification tree models demonstrated the potential to predict the CO2 emission class based on the provided features of the vehicles. The pruned tree, with its simplified structure, achieved a misclassification rate of around 12.3% on both the test set and the entire dataset. Further improvements to the model's accuracy could be explored through feature engineering, ensemble methods, or other advanced techniques.
+
+
+
+# 2.4 Multinomial regression
+
+We employ multinomial regression methodology to re-exam the CO2 emission using CO2 Rating as the responder, which has 10 level of classes, instead of CO2 Class, which has 2 level of classes. Both CO2 rating and CO2 Class were classified based on the CO2 emission data but binning differently. CO2 rating is based on evenly binning on the original CO2 emmission data. WE hope to see if refine binning will increase the accuracy of the prediction and to provide any threshold value of some major contributors
+
+A mulinomail cumulative logit regression model is suitable for this scenario to handle a multi-class classification problems. Since we have a set of ordered class and also we would like to know the cumulative probability, we selected cumulative logit regression model. Here, a linear relationship between the predictors and the log-odds of the class probabilities are expected and assumed. 
+
+**Step 1.Selet the best-fit cumulative logit model **
+
+First, the predictors are normalized based on their mean and standard deviation to a similar scale to facilitate the multinomial regression with better convergent.
+
+```{r}
+# Load the VGAM package
+library(VGAM)
+library(caret)
+set.seed(2023)
+
+#read the data
+mydata = read.csv("merged_data_full_6.csv")
+mynewdata <- mydata[, c("Year_of_model", "Engine_Size", "Cylinders", "CO2_rating","Weight_upto_kg","Auto_trans", "Fuel")]
+
+# Standardize numerical predictors
+means <- colMeans(mynewdata[, c("Year_of_model", "Engine_Size", "Cylinders","Weight_upto_kg")])
+sds <- apply(mynewdata[, c("Year_of_model", "Engine_Size", "Cylinders","Weight_upto_kg")], 2, sd)
+mynewdata_scaled <- mynewdata
+mynewdata_scaled[, c("Year_of_model" , "Engine_Size" , "Cylinders", "Weight_upto_kg")] <- scale(mynewdata_scaled[, c("Year_of_model" , "Engine_Size" , "Cylinders", "Weight_upto_kg")], center = means, scale = sds)
+
+# Ordered the responder
+mynewdata_scaled$CO2_rating <- ordered(mynewdata_scaled$CO2_rating, levels = 1:10)
+
+# Split the data into train and test sets
+trainData <- mynewdata_scaled[idx$ID_unit, ]
+testData <- mynewdata_scaled[-idx$ID_unit, ]
+#head(train,n=4)
+#head(trainData,n=4)
+```
+
+
+```{r}
+# Fit the cumulative regression model
+mn_model <- vglm(CO2_rating ~ Year_of_model + Engine_Size + Cylinders + Weight_upto_kg + factor(Auto_trans) + factor(Fuel), data = trainData, family = cumulative(parallel = TRUE))
+summary(mn_model)
+
+```
+
+From the cumulative logit model summary result, we can draw several conclusions:
+
+a. In the model summery, the null hypothesis is that the predictor has no effect on the response variable (CO2_rating), and the alternative hypothesis is that there is a significant effect. The p-value represents the probability of observing a test statistic as extreme as the one calculated, assuming the null hypothesis is true.
+
+All of the predictor variables (Year_of_model, Engine_Size, Cylinders, Weight_upto_kg, Auto_trans, and Fuel) have extremely low p-values (<=0.01), indicating strong evidence against the null hypothesis. Therefore, we conclude that all of these variables are significantly associated with the response variable (CO2_rating). 
+
+b. Model fit: The residual deviance and log-likelihood provide information about the goodness-of-fit of the model. A lower residual deviance indicates a better fit to the data. The log-likelihood represents the maximum value of the likelihood function, and a higher value indicates a better fit. However, without additional context or comparison with alternative models, it is challenging to make a definitive assessment of model fit.We will conduct further check in Step 2. 
+
+c. Hauck-Donner effect: Unfortunately Hauck-Donner effect was detected in '(Intercept 9), which suggests that the estimated coefficients are either highly sensitive to the order of the data, or data has some strong correlation /separation. This is not a desirable property. Since the result was not ensuring the stability of the coefficient estimates, these problematic intercept need to be further deal with. However, we tried a few things either re-started the fit from a desire value for intercept 9 or re-grouping category. Couldn't get it resolved. We didn't see a strong separation in the predictors by previous sections' plotting. Therefore, we leave the warning as it is. 
+
+Then, the next question you may ask is, which predictor/predictors have largest contribution for CO2-rating. We plotted the Exponentiated coefficients as follow to present it. 
+
+```{r}
+# Extract the coefficients from the model
+coefficients <- coef(mn_model)
+predictor_indices1 <- c(10, 11, 12, 13, 14,15)
+predictor_coefs <- coefficients[predictor_indices1]
+exp_coefs <- exp(predictor_coefs)
+
+plot(exp_coefs, type = "p", pch = 19, col = "blue", xlab = "Predictors", ylab = "Exponentiated Coefficients", main = "Exponentiated Coefficients")
+```
+As expected, the exponentiated coefficients vs Predictors plot indicated ngine size(2) and Cylinder size(3) are the strongest contributors for the CO2 emission rating. A further Heatmap plot confirmed their strong correlation with the CO2-rating. Detail as follow:
+
+
+```{r}
+
+mydata_subset <- mydata[, c("Year_of_model", "Engine_Size", "Cylinders", "CO2_rating","Weight_upto_kg")]
+
+# Calculate the correlation matrix
+cor_matrix <- cor(mynewdata)
+
+# Plot a correlation matrix heatmap
+#install.packages("corrplot", repo="https://github.com/taiyun/corrplot")
+library(corrplot)
+corrplot(cor_matrix, method = "color")
+
+```
+
+
+**Step 2. Check Good-of-fit of the multinomial cumulative regression model **
+
+Here the null hypothesis is defined as:
+$$
+H_0: \text{the cumulative logit model fits the observations}
+$$
+
+```{r}
+# Check the good-of-fit of the model
+1-pchisq(deviance(mn_model),df.residual(mn_model))
+```
+
+The p-value here is so large, so we cannot reject H0. therefore, the cumulative model provided a perfect fit. However this didn't mean the model will provide high accuracy prediction. 
+
+
+**Step 3. Model prediction**
+
+```{r}
+
+# Generate prediction
+mn_pred<-predict(mn_model,testData,type="response")
+
+# Extract engine size and predicted probabilities
+Engine_Size <- testData$Engine_Size
+Cylinders <- testData$Cylinders
+Year_of_model <- testData$Year_of_model
+Weight_upto_kg <- testData$Weight_upto_kg
+prob_CO2 <- mn_pred[, 1]
+
+#par(mfrow = c(2, 2))
+
+# Create a scatter plot
+plot(Engine_Size, prob_CO2, type = "p", pch = 16, col = "red",
+     xlab = "Engine_Size", ylab = "Probability of CO2 Emmsion",
+     main = "Probability of CO2 Emmsion vs. Engine Size")
+
+# Create a scatter plot
+plot(Cylinders, prob_CO2, type = "p", pch = 16, col = "blue",
+     xlab = "Cylinders", ylab = "Probability of CO2 Emmsion",
+     main = "Probability of CO2 Emmsion vs. # of Cylinders")
+
+# Create a scatter plot
+plot(Year_of_model, prob_CO2, type = "p", pch = 16, col = "green",
+     xlab = "Year_of_model", ylab = "Probability of CO2 Emmsion",
+     main = "Probability of CO2 Emmsion vs. Year_of_model")
+
+# Create a scatter plot
+plot(Weight_upto_kg, prob_CO2, type = "p", pch = 16, col = "pink",
+     xlab = "Weight_upto_kg", ylab = "Probability of CO2 Emmsion",
+     main = "Probability of CO2 Emmsion vs. Weight_upto_kg")
+```
+The CO2 emission probability plots clearly showed that, the probability of CO2 emission increase not only exponentially at a threshold number with Engine Size and Cylinder size, but also are notably effected by year of model and weight of the vehicle (weight_upto_kg) in a minor degree.
+
+
+**Step 4. Test the model's prediction **
+
+```{r, include=FALSE}
+library(Rfast)
+```
+
+```{r}
+fitted.result<-colnames(mn_pred)[rowMaxs(mn_pred)]
+misClasificError <- round(mean(fitted.result != testData$CO2_rating),3)
+print(paste('Accuracy',1-misClasificError))
+```
+
+
+
+```{r}
+# Create an empty plot
+
+x <- seq_along(testData$CO2_rating)
+plot(x, testData$CO2_rating, type = "l", col = "blue", ylim = c(0, 10), ylab = "CO2_rating", xlab = "Observation")
+
+x1 <- seq_along(fitted.result)
+# Add the predicted values
+lines(x1, fitted.result, col = "red")
+
+# Add a legend
+legend("topleft", legend = c("Predicted", "Test Dataset"), col = c("red", "blue"), lty = 1)
+```
+
+
+The overlap plot of actual CO2 rating vs predicted CO2 rating indicated the multinomial regression model over-estimated the CO2 emission for High emission class (or 1-5 CO2 rating) and significantly udder-estimated the CO2 emmission for Low emission class ( or 6-10 CO2 rating).  
+
+
+# 3 Conclusion
+
+Based on the analysis of different models and their performance in predicting the CO2 emission class, the following conclusions can be drawn:
+
+- Logistic regression: The logistic regression model achieved an accuracy of approximately 87.3% and a Kappa statistic of 0.745, indicating a good fit to the data. Significant predictors in this model include Year_of_model, Engine_Size, Weight_upto_kg, Auto_trans, and Fuel.
+
+- Linear Discriminant Analysis (LDA): The LDA model achieved an accuracy of around 85.5% and a Kappa statistic of 0.709, suggesting a reasonable fit. The significant predictors in this model are Year_of_model, Engine_Size, Weight_upto_kg, Auto_trans, and Fuel.
+
+- Quadratic Discriminant Analysis (QDA): The QDA model achieved an accuracy of approximately 83.3% and a Kappa statistic of 0.666, indicating a fair fit. The significant predictors in this model are Year_of_model, Engine_Size, Weight_upto_kg, Auto_trans, and Fuel.
+
+Assumptions of multivariate normality and equal variance were not met for the LDA and QDA models. This indicates that the variables in the dataset do not follow a multivariate distribution within each class of CO2_class, and the variances of the predictor variables are not equal across different levels of CO2_class. These violations should be considered when interpreting the results and assessing the performance of the LDA and QDA models.
+
+- Classification tree: The classification tree model demonstrated superior performance compared to the logistic regression, LDA, and QDA models, with an accuracy of 87.7%. The key predictor in this model is Engine_Size, which effectively partitions the predictor space.
+
+- Multinomial regression: Unlike the other models, which used the CO2 emissions class (High/Low) as the response variable, the multinomial regression model employed the CO2 emissions rating as the response variable. The CO2 emissions rating is a scale ranging from 1 (worst) to 10 (best). This distinction in the response variable should be taken into account when comparing the results of the multinomial regression model with the other models.
+The multinomial regression model showed an accuracy of 48.2%. TSignificant predictors in this model include Year_of_model, Engine_Size, Cylinders, Weight_upto_kg, Auto_trans, and Fuel. However, the model exhibited the Hauck-Donner effect, which suggests potential issues with coefficient stability.
+
+In summary, the classification tree model emerged as the best-performing model in terms of accuracy. The significant predictors across the different models generally include Year_of_model, Engine_Size, Weight_upto_kg, Auto_trans, and Fuel. These findings can provide insights into the relationship between vehicle characteristics and CO2 emissions, aiding in the development of more accurate prediction models and the promotion of sustainable practices in the transportation sector.
+
+
+
+# References
+
+[1] Government of Canada. (2023). Fuel consumption ratings. Available at: https://open.canada.ca/data/en/dataset/98f1a129-f628-4ce4-b24d-6f16bf24dd64 [Accessed 29 May 2023]. Contains information licensed under the Open Government Licence – Canada.
+
+
+
+
+
+
+
+
+
+
+
+
