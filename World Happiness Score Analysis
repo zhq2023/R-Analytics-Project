@@ -1,0 +1,1066 @@
+
+# 3 DATA WRANGLING
+
+
+```{r}
+# Read the data
+
+happydata <- read_excel("DataForTable2.1WHR2023.xls")
+str(happydata)
+
+```
+
+
+
+```{r}
+# Rename the column
+names(happydata) <- c("country", "year", "ladder", "GDP", "social", "healthy", "freedom", "generosity", "corruption", "positive", "negative")
+head(happydata, 3)
+
+```
+
+
+
+```{r}
+# View missing values
+
+sum(is.na(happydata))
+
+```
+
+
+```{r}
+# Drop missing data rows
+happy <- happydata[complete.cases(happydata), ]
+
+# Check missing data
+happy %>% 
+  summarise_all(~sum(is.na(.)))
+
+```
+
+
+
+```{r}
+glimpse(happy)
+
+```
+```{r}
+library(rworldmap)
+
+# Create a world map of the 2023 World Happiness Report by the happiness ladder
+df <- data.frame(country = happydata$country, value = happydata$ladder)
+
+j <- joinCountryData2Map(df, joinCode = "NAME", nameJoinColumn = "country")
+
+mapCountryData(j, nameColumnToPlot = "value", 
+               mapTitle = "World Map for 2023 World Happiness Report", 
+               colourPalette = 'terrain')
+```
+
+
+
+
+------------------
+
+
+# 4 EVALUATING OVERALL MODEL UTILITY
+
+
+## 4.1 Full Model Test
+
+To testing a relationship between the response and predictors, an overall F-test is firstly performed to check if the multiple regression model is useful. To address the overall question, the hypothesis is:
+
+
+$H_0:\;\beta_1=\beta_2=...=\beta_p=0\\$
+$H_a:\;\text{at least one}\;\beta_i\;\text{is not zero}\;(i=1,2...p)$
+
+
+
+```{r}
+# Compare the NULL model with the full model
+
+fullmodel<-lm(ladder ~ factor(country) + year + GDP + social + healthy + freedom + generosity + corruption + positive + negative, data = happy) # Full model
+reg2<-lm(ladder ~ 1,  data = happy) # Model with only intercept
+anova(reg2, fullmodel) 
+
+```
+
+
+We compare the NULL model with the full model, the output shows that $F_{cal}$=2313.7 with $df$= 108 (p-value< 2.2e-16 < $\alpha$ = 0.05 ), indicating that we should clearly reject the null hypothesis. It provides compelling evidence against the null hypothesis $H_0$. Therefore, the large F-test suggests that at least one of the independent variables must be related to the dependent variable ladder.
+
+Once we check the overall F-test and reject the null hypothesis, we can check the test statistics for the individual coefficients and particular subsets of the full model test.
+
+```{r}
+anova(fullmodel)
+```
+
+
+
+
+
+## 4.2 Partial Test
+
+Individual Coefficients Test (t-test), let:
+
+
+$H_0:\;\beta_i=0\\$
+$H_a:\;\beta_i\ne0\;(i=1,2...p)$
+
+
+
+```{r}
+fullmodel<-lm(ladder ~ factor(country) + year + GDP + social + healthy + freedom + generosity + corruption + positive + negative, data = happy)
+summary(fullmodel)
+
+```
+
+
+From the summary of the full model, the output shows that the healthy has $t_{cal}$=-1.468 with the p-value = 0.142216 > 0.05, indicating that we should clearly not reject the null hypothesis that the negative has a non-significant influence on the ladder. The other independent variables including year, GDP, social, healthy, freedom, generosity, corruption, and positive can remain in the regression model because of their significant p-values negative at $\alpha$ = 0.05.
+
+
+```{r}
+# Drop the healthy variable
+full<-lm(ladder ~ factor(country) + year + GDP + social + healthy + freedom + generosity + corruption + positive + negative, data = happy)
+
+reduced<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative, data = happy) 
+anova(reduced,full)
+
+```
+
+
+From the above partial F-test, the p-value=0.1422 > $\alpha$ = 0.05, indicating that we could drop the variable negative off the full model.
+
+
+
+
+```{r}
+# First order model
+
+firstordermodel<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative, data = happy)
+
+summary(firstordermodel)
+
+```
+
+
+
+
+
+
+After checking individual coefficients test, the first order model is:
+
+$$\hat{ladder}=-5.961647+0.002451*year+0.436240*GDP+1.610603*social+0.534934*freedom+0.369642*generosity-0.575846*corruption+2.27583*positive-1.076019*negative$$+factor(country)
+
+
+
+
+
+
+
+---------------------
+
+# 5 MODEL SELECTION
+
+## 5.1 Stepwise Regression 
+
+Steps in Selecting the Best Regression Equation
+To select the best regression equation, we carry out the following steps
+1) Specify the maximum model to be considered.
+2) Specify a strategy for selecting a model
+3) Evaluate the reliability of the model chosen.
+
+
+```{r}
+stepmod=ols_step_both_p(fullmodel, pent = 0.1, prem = 0.3, details=TRUE)
+
+```
+
+
+```{r}
+summary(stepmod$model)
+
+```
+
+From the output, we specified our penter = 0.1 to follow the same procedure of Stepwise regression. Therefore,
+the regression model by using stepwise regression procedure is
+
+$$\hat{ladder}=-5.961647+0.002451*year+0.436240*GDP+1.610603*social+0.534934*freedom+0.369642*generosity-0.575846*corruption+2.27583*positive-1.076019*negative$$+factor(country)
+
+
+
+
+
+```{r}
+library(olsrr)
+
+#Select the subset of predictors that do the best at meeting some well-defined objective criterion
+ks=ols_step_best_subset(firstordermodel, details=TRUE)
+# for the output interpretation
+rsquare<-c(ks$rsquare)
+AdjustedR<-c(ks$adjr)
+cp<-c(ks$cp)
+AIC<-c(ks$aic)
+cbind(rsquare,AdjustedR,cp,AIC)
+
+```
+
+
+
+
+```{r}
+par(mfrow=c(2,2)) # split the plotting panel into a 2 x 2 grid
+plot(ks$cp,type = "o",pch=10, xlab="Number of Variables",ylab= "Cp")
+plot(ks$rsq,type = "o",pch=10, xlab="Number of Variables",ylab= "R^2")
+plot(ks$aic,type = "o",pch=10, xlab="Number of Variables",ylab= "AIC")
+plot(ks$adjr,type = "o",pch=10, xlab="Number of Variables",ylab= "Adjusted R^2")
+
+```
+
+
+
+
+
+
+## 5.2 Testing for Interaction in Multiple Regression
+
+After using model selection by automatic methods or all possible regression methods, we might not have
+the best fit model yet, as we consider only main effects on independent variables. After eliminating some
+variables that are not important out of the model, we consider interaction terms and/or high order multiple
+regression model to improve the model.
+
+
+
+```{r}
+# Building the best model with interaction term
+interactmodel1<-lm(ladder ~ factor(country) + (year + GDP + social + freedom + generosity + corruption + positive + negative)^2, data = happy)
+
+summary(interactmodel1)
+
+```
+
+
+
+```{r}
+
+interactmodel2<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative + year*social + year*negative + GDP*negative + social*freedom + positive*negative, data = happy)
+
+summary(interactmodel2)
+
+```
+
+
+
+
+
+## 5.3 Check for multicollinearity
+
+
+
+```{r}
+library(mctest)
+imcdiag(firstordermodel, method="VIF")
+
+```
+
+
+
+
+```{r}
+imcdiag(interactmodel1, method="VIF")
+
+```
+
+
+
+```{r}
+imcdiag(interactmodel2, method="VIF")
+
+```
+
+
+
+
+From the above VIF comparison between firstordermodel and interactmodel, we know that the independent variable data has multicollinearity problems, so we decided to standardize the original data.
+
+
+
+
+
+```{r}
+
+# Standardize variables
+
+happy[4 : 11] <- as.data.frame(scale(happy[4 : 11]))
+head(happy)
+
+```
+
+
+
+**Check the multicollinearity with normalized variables**
+
+
+```{r}
+firstordermodel<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative, data = happy)
+
+firstordermodel<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative, data = happy)
+
+interactmodel1<-lm(ladder ~ factor(country) + (year + GDP + social + freedom + generosity + corruption + positive + negative)^2, data = happy)
+
+interactmodel2<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + corruption + positive + negative +year*social + year*negative + GDP*negative + social*freedom + positive*negative, data = happy)
+
+```
+
+
+
+```{r}
+imcdiag(interactmodel2, method="VIF")
+
+```
+
+
+
+```{r}
+# Drop year*social, year*negative, negative, social, corruption from the interactmodel2
+
+interactmodel3<-lm(ladder ~ factor(country) + year + GDP + freedom + generosity + positive + social*freedom + positive*negative, data = happy)
+
+
+```
+
+
+
+```{r}
+# Check the multicollinearity with interactmodel3
+imcdiag(interactmodel3, method="VIF")
+
+```
+
+
+
+Now the collinearity is not detected by the test.
+
+
+
+## 5.4 Testing for high order model between predictors and Y to improve the model
+
+
+```{r}
+pairs(~ladder + factor(country) + year + GDP + social + healthy + freedom + generosity + corruption + positive + negative, data=happy, panel=panel.smooth)
+
+```
+
+
+
+## 5.5 Backward Elimination Procedure
+
+
+```{r}
+interactmodel4<-lm(ladder ~ factor(country) + year + GDP + (social + healthy + freedom + generosity + corruption + positive + negative)^2, data = happy)
+
+```
+
+```{r}
+backmodel1=ols_step_backward_p(interactmodel4, prem = 0.3, details=TRUE)
+
+```
+
+
+```{r}
+summary(backmodel1$model)
+```
+
+
+
+------
+
+
+
+```{r}
+backmodel2=ols_step_backward_p(interactmodel3, prem = 0.3, details=TRUE)
+
+```
+
+
+```{r}
+summary(backmodel2$model)
+```
+
+
+
+
+
+## 5.6 Forward selection procedure
+
+```{r}
+
+formodel1=ols_step_forward_p(interactmodel4, penter = 0.1, details=TRUE)
+
+```
+
+
+```{r}
+summary(formodel1$model)
+```
+
+
+
+
+
+
+```{r}
+# Stepwise Selection Method
+stepmod3=ols_step_both_p(interactmodel4, pent = 0.1, prem = 0.3, details=TRUE)
+```
+
+
+
+
+```{r}
+
+summary(stepmod3$model)
+```
+
+
+
+
+
+
+From the above three regression selection methods, the interaction terms of social*healthy and positive*negative are determined to be consistently significant, so we get happymodel1.
+
+```{r}
+
+happymodel1 <- lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + social*freedom + positive*negative, data = happy)
+summary(happymodel1)
+
+```
+
+happymodel1 <- lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + social*freedom + positive*negative, data = happy)
+
+
+```{r}
+# Try more powers
+happymodel2<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(GDP^2) + I(social^2) + I(freedom^2) + I(generosity^2) +I(positive^2) + I(negative^2) + social*freedom + positive*negative, data = happy)
+summary(happymodel2)
+
+```
+
+
+
+```{r}
+# Try more powers
+happymodel3<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(GDP^2) + I(social^2) + I(freedom^2) + I(generosity^2) +I(positive^2) + I(negative^2)+ I(GDP^3) + I(social^3) + I(freedom^3) + I(generosity^3) +I(positive^3) + I(negative^3) + social*freedom + positive*negative, data = happy)
+summary(happymodel3)
+
+```
+
+
+```{r}
+
+happymodel4<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2) + social*freedom + positive*negative, data = happy)
+summary(happymodel4)
+
+```
+
+
+
+
+
+
+
+
+## 5.7 Best fit model
+
+We compare the above models and choose a best fit model.
+
+```{r}
+
+firstordermodel<-lm(ladder ~ year + GDP + social + healthy + freedom + generosity + corruption + positive, data = happy)
+
+
+happymodel1 <- lm(ladder ~ year + GDP + social + healthy + freedom + generosity + corruption + positive + GDP*positive +GDP*generosity+ social*healthy + freedom*generosity, data=happy)
+summary(happymodel1)
+
+
+happymodel2<-lm(ladder ~ year + GDP + social + healthy + freedom + generosity + corruption + positive + I(GDP^2) + I(social^2) + I(healthy^2)+ I(freedom^2) + I(generosity^2) +I(positive^2) + I(corruption^2) + GDP * positive + GDP * generosity + social * healthy + freedom * generosity, data = happy)
+
+happymodel3<-lm(ladder ~ year + GDP + social + healthy + freedom + generosity + corruption + positive + I(GDP^2) + I(social^2) + I(healthy^2)+ I(freedom^2) + I(generosity^2) +I(positive^2) + I(corruption^2)+ I(GDP^3) + I(social^3) + I(healthy^3)+ I(freedom^3) + I(generosity^3) +I(positive^3) + I(corruption^3) + GDP * positive + GDP * generosity + social * healthy + freedom * generosity, data = happy)
+
+happymodel4<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2) + social*freedom + positive*negative, data = happy)
+
+
+
+
+```
+
+
+```{r}
+# Adjusted R square
+summary(fullmodel)$adj.r.squared
+summary(firstordermodel)$adj.r.squared
+summary(happymodel4)$adj.r.squared 
+
+```
+
+
+
+```{r}
+# RMSE
+summary(fullmodel)$sigma 
+summary(firstordermodel)$sigma
+summary(happymodel4)$sigma 
+
+  
+```
+
+
+It seems that happymodel4 has the highest $R_{adj}^2$=0.9033807 and the lowest RMSE=0.3546716, compared with the full model and first order model. Let's check the multicollearity of this model.
+
+
+```{r}
+library(mctest)
+imcdiag(happymodel4, method="VIF")
+
+```
+
+
+The output shows that the multicollinearity is tested due to GDP. There is no interaction variables with GDP, so we think the multicollinearity is due to countries with GDP. But we cannot remove countries, GDP is also very imporant, so we remain them in the model.
+
+
+
+
+
+```{r}
+library(mctest)
+imcdiag(happymodel4, method="VIF")
+
+```
+
+
+ 
+
+Comparing with the first order model, after including the terms of positive*negative, social*freedom, quadratic term $I(freedom^2)$, $I(negative^2)$,  they led to such a big improvement in the model. $R^2_{adj}$ increases from 0.899671 to 0.9033807, and the standard error of residuals (RMSE) decreases from 0.3614163 to 0.3546716. Therefore, it is clear that adding the additional terms really has led to a better fit to the data. The best fit model is:
+
+$$\hat{ladder}=\beta_0+\beta_1factor(country)+\beta_2year+\beta_3GDP+\beta_4social+\beta_5freedom+\beta_6generosity+\beta_7positive+\beta_8negative+\beta_9freedom^2+\beta_{10}negative^2+\beta_{11}social*freedom+\beta_{12}positive*negative+\epsilon$$
+
+
+```{r}
+# Best fit model
+bestfitmodel<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2) + social*freedom + positive*negative, data = happy)
+
+summary(bestfitmodel)
+
+```
+
+
+
+----------
+
+
+
+# 6 REGRESSION MODEL DIAGNOSTICS
+
+## 6.1 Linearity Assumption
+
+
+
+```{r}
+#residual vs fitted data plot for the model
+ggplot(bestfitmodel, aes(x=.fitted, y=.resid)) +
+geom_point() +geom_smooth()+
+geom_hline(yintercept = 0)
+
+```
+
+
+From the output, the bestfitmodel shows no pattern of the residuals at all. Moreover, the $R^2_{adj}$ of the model is 0.9034 indicates the variation in y that can be explained by this model is 90.34% with $RMSE$= 0.3547. 
+
+
+
+
+## 6.2 Equal Variance Assumption
+
+
+
+```{r}
+# Residuals plot
+ggplot(bestfitmodel, aes(x=.fitted, y=.resid)) +
+geom_point() +
+geom_hline(yintercept = 0) +
+geom_smooth()+
+ggtitle("Residual plot: Residual vs Fitted values")
+
+
+```
+
+
+
+```{r}
+# Scale location plot
+ggplot(bestfitmodel, aes(x=.fitted, y=sqrt(abs(.stdresid)))) +
+geom_point() +
+geom_hline(yintercept = 0) +
+geom_smooth()+
+ggtitle("Scale-Location plot : Standardized Residual vs Fitted values")
+
+```
+
+
+
+The scale location plot doesn't look ideal.
+
+
+
+
+Breusch-Pagan test, let:
+
+$H_0$: heteroscedasticity is not present (homoscedasticity)
+
+$H_a$: heteroscedasticity is present
+
+
+```{r}
+library(lmtest)
+bptest(bestfitmodel)
+
+```
+
+The output displays the Breusch-Pagan test that results from the bestintmodel. The p-value = 2.2e-16 <0.05, indicating that we do reject the null hypothesis. Therefore, the test provides evidence to suggest that heteroscedasticity does exist.
+
+
+
+
+```{r}
+# Morepower model
+morepower1<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2)+I(freedom^3) + I(negative^3) +I(freedom^4) + I(negative^4)+I(freedom^5) + I(negative^5)+I(freedom^6) + I(negative^6)+I(freedom^7) + I(negative^7)+I(freedom^8) + I(negative^8)+I(freedom^9) + I(negative^9)+I(freedom^10) + I(negative^10) + I(freedom^11) + I(negative^11) + social*freedom + positive*negative, data = happy)
+               
+bptest(morepower1)
+
+```
+
+We tried a model with more power on (power of 11) shows evidence to suggest that heteroscedasticity still exists.
+
+
+
+
+
+## 6.3 Normality Assumption
+
+
+
+Kolmogorov-Smirnov test, let:
+
+$H_0$: the sample data are significantly normally distributed
+$H_a$: the sample data are not significantly normally distributed
+
+
+```{r}
+# Histogram
+par(mfrow=c(1,2))
+hist(residuals(bestfitmodel))
+
+# Normal plot
+plot(bestfitmodel, which=2) 
+
+```
+
+
+```{r}
+#Testing for Normality
+shapiro.test(residuals(bestfitmodel))
+
+```
+
+
+
+
+
+
+The geom_qq_line and stat_qq_line compute the slope and intercept of the line connecting the points at specified quartiles of the theoretical and sample distributions. The outputs show that the residual data have a normal distribution (from the histogram and Q-Q plot). However, the Shapiro-Wilk normality test shows that the residuals are not normally distributed as the 2.877e-10 < 0.05.
+
+
+
+
+
+## 6.4 Outlier (The Effect on Individual Cases)
+
+
+### 6.4.1 Residuals vs Leverage plot
+
+
+
+```{r}
+plot(bestfitmodel, which=5)
+
+
+```
+
+
+
+
+
+### 6.4.2 Cook’s Distance
+
+
+
+```{r}
+# Have Cook statistics larger than 0.5
+happy[cooks.distance(bestfitmodel)>0.5,] 
+
+
+```
+
+
+
+```{r}
+plot(bestfitmodel, pch=18, col="red", which=c(4))
+
+```
+
+
+
+### 6.4.3 Leverage points
+
+
+```{r}
+
+lev=hatvalues(bestfitmodel)
+p = length(coef(bestfitmodel))
+n = nrow(happy)
+outlier2p = lev[lev>(2*p/n)]
+outlier3p = lev[lev>(3*p/n)]
+print(outlier3p)
+
+```
+
+
+
+
+```{r}
+plot(rownames(happy),lev, main = "Leverage in happy Dataset", xlab="observation",
+ylab = "Leverage Value")
+abline(h = 2 *p/n, lty = 1)
+abline(h = 3 *p/n, lty = 1)
+
+```
+
+
+
+
+The above outliers are detected by using leverage values greater that $\frac{3p}{n}$. Then a new dataset of happydata will be created by removing these points.
+
+
+
+
+
+```{r}
+rowname <- rownames(happy)
+dim(happy)
+happydata <- subset(happy, !(rowname %in% c("36","117","118","119","164","165","169","180","181","182","206","271","480","481","482","559","560","561", "614","617","709","902","903","904","939","940","941","1462","1506","1507","1572","1594","1595","1596","1668","1704","1705","1706","1830","1831","1832","1905")))
+dim(happydata)
+
+```
+
+
+
+
+
+
+
+```{r}
+# New best fit model with new dataset
+bestfitmodel1<-lm(ladder ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2) + social*freedom + positive*negative, data = happydata)
+
+summary(bestfitmodel1)
+
+
+```
+
+
+From the output, we can see that after dropping off the outliers(3p/n), $R^2_{adj}$ increases from 0.9034 to 0.9054, and the standard error of residuals (RMSE) decreases from 0.3547 to 0.3521, compared with using the old dataset. 
+
+
+
+
+
+```{r}
+#Testing for Normality
+shapiro.test(residuals(bestfitmodel1))
+```
+
+The residuals of the model still does not fit normal distribution.
+
+
+```{r}
+#Testing for Homoscedasticity
+
+bptest(bestfitmodel)
+
+```
+
+
+
+
+```{r}
+# Histogram
+par(mfrow=c(1,2))
+hist(residuals(bestfitmodel1))
+
+# Normal plot
+plot(bestfitmodel1, which=2) 
+
+```
+
+
+```{r}
+plot(bestfitmodel1,which=1)
+
+```
+
+
+
+
+```{r}
+# Scale location plot
+ggplot(bestfitmodel1, aes(x=.fitted, y=sqrt(abs(.stdresid)))) +
+geom_point() +
+geom_hline(yintercept = 0) +
+geom_smooth()+
+ggtitle("Scale-Location plot : Standardized Residual vs Fitted values")
+
+```
+
+
+
+
+
+### 6.4.4 Box-Cox Transformations (Transformations for Nonnormallity and Heteroscedasticity)
+
+
+```{r}
+library(MASS)
+bc=boxcox(bestfitmodel1,lambda=seq(-3, 3))
+
+```
+
+
+```{r}
+#extract best lambda
+bestlambda=bc$x[which(bc$y==max(bc$y))]
+bestlambda
+
+```
+
+
+
+
+```{r}
+#We found that bestlambda=2.151515
+bcmodel=lm((((ladder^2.151515)-1)/2.151515) ~ factor(country) + year + GDP + social + freedom + generosity + positive + negative + I(freedom^2) + I(negative^2) + social*freedom + positive*negative, data = happydata)
+summary(bcmodel)
+
+
+```
+
+
+
+
+```{r}
+#Testing for Homoscedasticity
+
+bptest(bcmodel)
+
+```
+
+The studentized Breusch-Pagan test shows that the heteroscedasticity does exist.
+
+
+```{r}
+# Histogram
+par(mfrow=c(1,2))
+hist(residuals(bcmodel))
+
+# Normal plot
+plot(bcmodel, which=2) 
+
+```
+
+
+```{r}
+plot(bcmodel, which=1)
+
+```
+
+
+```{r}
+# Scale location plot
+ggplot(bcmodel, aes(x=.fitted, y=sqrt(abs(.stdresid)))) +
+geom_point() +
+geom_hline(yintercept = 0) +
+geom_smooth()+
+ggtitle("Scale-Location plot : Standardized Residual vs Fitted values")
+
+```
+
+
+
+
+```{r}
+#Testing for Normality
+shapiro.test(residuals(bcmodel))
+```
+
+
+After Box-Cox Transformations, the scale-location plot shows better pattern than the previous one. The histogram and Q-Q plot reflect that the residual data have a normal distribution. However, the Shapiro-Wilk normality test still not pass the  that the residuals are not normality assumption as the 1.053e-07 < 0.05.
+
+
+
+
+
+
+------------
+
+
+# 7 PREDICTION
+We use the best model to predict happiness score in South Africa in 2030.First build a sub-database with only data from South Africa from 2016 to 2021.We forcast the value of factors we need according to the year.
+```{r}
+South_Africa_data <- subset(happydata, country == "South Africa")
+reg_GDP<-lm(GDP~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+predict(reg_GDP,newdata,interval="predict")
+summary(reg_GDP)
+
+```
+```{r}
+reg_social<-lm(social~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+predict(reg_social,newdata,interval="predict")
+summary(reg_social)
+```
+```{r}
+reg_freedom<-lm(freedom~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+predict(reg_freedom,newdata,interval="predict")
+summary(reg_freedom)
+```
+```{r}
+reg_generosity<-lm(generosity~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+newgenerosity<-predict(reg_generosity,newdata,interval="predict")
+newgenerosity
+summary(reg_generosity)
+```
+```{r}
+reg_positive<-lm(positive~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+predict(reg_positive,newdata,interval="predict")
+summary(reg_positive)
+```
+```{r}
+reg_negative<-lm(negative~year,data=South_Africa_data)
+newdata=data.frame(year=2030)
+predict(reg_negative,newdata,interval="predict")
+summary(reg_negative)
+
+```
+```{r}
+newhappydata<-data.frame(country="South Africa",year=2030,GDP=0.1562965,social=0.9538768,freedom=0.2512453,generosity=-0.2624189,positive=1.516889,negative=0.3723583)
+predict(bestfitmodel1,newhappydata,interval="predict")
+
+```
+
+
+
+--------------
+
+# 8 CONCLUSION
+To summarize our findings from the analysis, the main effects of country, year, GDP,social support,freedom to make life choices,generosity and confidence in national government are shown be significant with less multicolinearity (VIF values) compared to the other predictor variables.Interactions between social and freedom,and positive and negative were significant (based on individual coefficient test: p-values).Higher order terms of freedom and negative were significant(based on individual coefficient test p-values).
+However,after we combined the main effects,higher order terms, and interactions together, we found that heteroscedasticity exsits in the model and the residuals are not normally distributed.
+To improve our model,these data would benefit from a time-series workflow. If we can remove the time-series effects, we would get a better model to predict.
+
+
+
+
+
+-----------------
+
+# REFERENCES
+
+
+Kaggle. (2022) 'World Happiness Report up to 2022'[Online]. Available at: https://www.kaggle.com/datasets/mathurinache/world-happiness-report?select=2021.csv/ (Accessed 11 March 2023).
+
+World Happiness Report. (2023) [Online]. Available at:  https://worldhappiness.report/archive/ (Accessed 21 March 2023).
+
+Yamini, A. (2022) 'Analysing World Happiness Report (2020-2022)'. Available at: https://www.analyticsvidhya.com/blog/2023/01/analysing-world-happiness-report-2020-2022/ (Accessed 11 March 2023).
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
